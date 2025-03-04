@@ -1,28 +1,26 @@
 import os
+import asyncio
+import aiofiles
 import base64
-import smallest_waves
-from smallest_waves import WavesClient
+from smallest import AsyncSmallest
 
-def handler(event, context):
-    # Get API Key from environment variables
-    API_KEY = os.getenv("WAVES_API_KEY")
-    if not API_KEY:
-        return {"statusCode": 500, "body": "Missing API Key"}
+async def synthesize_speech(text):
+    api_key = os.getenv("WAVES_API_KEY")
+    if not api_key:
+        raise ValueError("Missing API Key")
 
-    # Get text input from GET request
+    async with AsyncSmallest(api_key=api_key) as client:
+        return await client.synthesize(text, format="mp3")
+
+async def handler(event, context):
     query_params = event.get("queryStringParameters", {})
     text = query_params.get("text", "Hello")
-    voice_id = query_params.get("voice_id", "emily")  # Default voice
 
     try:
-        # Initialize Waves API Client
-        waves = WavesClient(api_key=API_KEY)
+        audio_bytes = await synthesize_speech(text)
 
-        # Generate speech
-        response = waves.get_speech(text=text, voice_id=voice_id, format="mp3")
-
-        # Encode audio to Base64 for direct download
-        audio_base64 = base64.b64encode(response).decode("utf-8")
+        # Encode audio as Base64 for direct download
+        audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
 
         return {
             "statusCode": 200,
@@ -31,7 +29,7 @@ def handler(event, context):
                 "Content-Disposition": f"attachment; filename=speech.mp3",
             },
             "body": audio_base64,
-            "isBase64Encoded": True,  # Required for binary response
+            "isBase64Encoded": True,
         }
     except Exception as e:
         return {"statusCode": 500, "body": str(e)}
