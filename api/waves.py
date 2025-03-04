@@ -1,33 +1,37 @@
 import os
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, jsonify
 from smallest import Smallest
 
 app = Flask(__name__)
 
-# Load API key from environment variables
+# Retrieve the Smallest API key from environment variables
 SMALLEST_API_KEY = os.getenv("SMALLEST_API_KEY")
 
-def generate_tts(text):
-    """Generate TTS and save it as an MP3 file."""
-    client = Smallest(api_key=SMALLEST_API_KEY)
-    audio_bytes = client.synthesize(text, voice_id="emily", format="mp3")
+# Initialize the Smallest client
+client = Smallest(api_key=SMALLEST_API_KEY)
 
-    file_path = "/tmp/output.mp3"
-    with open(file_path, "wb") as f:
-        f.write(audio_bytes)
-    
-    return file_path
-
-@app.route("/api/waves", methods=["GET"])
-def tts_endpoint():
-    """Handle GET requests for text-to-speech."""
-    text = request.args.get("text", "Hello, world!")
+@app.route("/api/tts", methods=["GET"])
+def tts():
+    # Extract the 'text' query parameter; default to a sample text if not provided
+    text = request.args.get("text", "Hello, this is a test of the Smallest TTS service.")
 
     try:
-        file_path = generate_tts(text)
-        return send_file(file_path, mimetype="audio/mp3", as_attachment=True, download_name="tts.mp3")
+        # Synthesize speech from the input text
+        audio_bytes = client.synthesize(text, voice_id="emily", format="mp3")
+
+        # Define the path to temporarily save the audio file
+        file_path = "/tmp/tts_output.mp3"
+
+        # Write the synthesized audio to the file
+        with open(file_path, "wb") as audio_file:
+            audio_file.write(audio_bytes)
+
+        # Send the audio file as a response for download
+        return send_file(file_path, mimetype="audio/mpeg", as_attachment=True, download_name="tts_output.mp3")
+
     except Exception as e:
-        return {"success": False, "message": str(e)}, 500
+        # Handle errors and return a JSON response with the error message
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)
