@@ -1,12 +1,20 @@
+import os
 from fastapi import FastAPI, Query
 import requests
 from fastapi.responses import Response
+from dotenv import load_dotenv
+
+# Load environment variables from a .env file (useful for local testing)
+load_dotenv()
 
 app = FastAPI()
 
-# Smallest AI API Credentials
-API_KEY = "YOUR_API_KEY"
+# Get API Key from environment variables
+API_KEY = os.getenv("WAVES_API_KEY")
 ENDPOINT = "https://waves-api.smallest.ai/api/v1/lightning/get_speech"
+
+if not API_KEY:
+    raise ValueError("Missing WAVES_API_KEY environment variable!")
 
 @app.get("/api/waves")
 async def generate_tts(text: str = Query(..., min_length=1), voice_id: str = "emily"):
