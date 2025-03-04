@@ -1,6 +1,8 @@
 import os
+import io
 from flask import Flask, request, send_file
 from smallest import Smallest
+from pydub import AudioSegment
 
 app = Flask(__name__)
 
@@ -8,15 +10,16 @@ app = Flask(__name__)
 SMALLEST_API_KEY = os.getenv("SMALLEST_API_KEY")
 
 def generate_tts(text):
-    """Generate TTS and save it as an MP3 file."""
+    """Generate TTS and convert it to MP3."""
     client = Smallest(api_key=SMALLEST_API_KEY)
-    audio_bytes = client.synthesize(text, voice_id="emily", format="mp3")
+    audio_bytes = client.synthesize(text, voice_id="emily")  # Removed format="mp3"
 
-    file_path = "/tmp/output.mp3"
-    with open(file_path, "wb") as f:
-        f.write(audio_bytes)
-    
-    return file_path
+    # Convert WAV bytes to MP3
+    audio = AudioSegment.from_wav(io.BytesIO(audio_bytes))
+    mp3_path = "/tmp/output.mp3"
+    audio.export(mp3_path, format="mp3")
+
+    return mp3_path
 
 @app.route("/api/waves", methods=["GET"])
 def tts_endpoint():
