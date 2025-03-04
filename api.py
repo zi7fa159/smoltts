@@ -1,23 +1,33 @@
 import os
-from fastapi import FastAPI, Query
+import json
 import requests
-from fastapi.responses import Response
 from dotenv import load_dotenv
 
-# Load environment variables from a .env file (useful for local testing)
+# Load environment variables (for local testing)
 load_dotenv()
 
-app = FastAPI()
+def handler(event, context):
+    # Get API key from environment variable
+    API_KEY = os.getenv("WAVES_API_KEY")
+    ENDPOINT = "https://waves-api.smallest.ai/api/v1/lightning/get_speech"
 
-# Get API Key from environment variables
-API_KEY = os.getenv("WAVES_API_KEY")
-ENDPOINT = "https://waves-api.smallest.ai/api/v1/lightning/get_speech"
+    if not API_KEY:
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"success": False, "message": "Missing WAVES_API_KEY!"}),
+        }
 
-if not API_KEY:
-    raise ValueError("Missing WAVES_API_KEY environment variable!")
+    # Parse request parameters
+    try:
+        params = json.loads(event["body"])
+        text = params.get("text")
+        voice_id = params.get("voice_id", "emily")
+    except:
+        return {"statusCode": 400, "body": json.dumps({"success": False, "message": "Invalid request"})}
 
-@app.get("/api/waves")
-async def generate_tts(text: str = Query(..., min_length=1), voice_id: str = "emily"):
+    if not text:
+        return {"statusCode": 400, "body": json.dumps({"success": False, "message": "Text is required"})}
+
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json",
@@ -28,10 +38,18 @@ async def generate_tts(text: str = Query(..., min_length=1), voice_id: str = "em
         "format": "mp3",
     }
 
-    # Send request to Smallest AI
+    # Make request to Waves API
     response = requests.post(ENDPOINT, json=payload, headers=headers)
 
     if response.status_code == 200:
-        return Response(content=response.content, media_type="audio/mpeg")
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "audio/mpeg"},
+            "body": response.content,
+            "isBase64Encoded": True,
+        }
 
-    return {"success": False, "message": f"Error {response.status_code}: {response.text}"}
+    return {
+        "statusCode": response.status_code,
+        "body": json.dumps({"success": False, "message": response.text}),
+    }
