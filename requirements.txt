@@ -1,4 +1,2 @@
-uvicorn
 requests
 dotenv
-base64
