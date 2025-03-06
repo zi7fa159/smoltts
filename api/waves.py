@@ -18,7 +18,7 @@ def tts_endpoint():
         audio_bytes = client.synthesize(
             text, 
             voice_id=voice_id,
-            sample_rate=24000,  # ✅ Best for ESP32 I2S streaming
+            sample_rate=16000,  # ✅ Best for ESP32 I2S streaming
             add_wav_header=True  # ✅ Ensure correct WAV format
         )
 
