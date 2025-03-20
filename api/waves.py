@@ -1,17 +1,19 @@
 import os
 import io
 import re
-from flask import Flask, request, send_file
+from fastapi import FastAPI, Query, HTTPException
+from fastapi.responses import StreamingResponse
 from smallest import Smallest
+from typing import Optional
 
-app = Flask(__name__)
+app = FastAPI()
 
 # Load API key from environment variables
 SMALLEST_API_KEY = os.getenv("SMALLEST_API_KEY")
 
-def chunk_text(text, max_length=500):
+def chunk_text(text, max_length=200):
     """
-    Split text into chunks with proper sentence boundaries.
+    Split text into smaller chunks with proper sentence boundaries.
     
     Args:
         text: The input text to chunk
@@ -51,25 +53,29 @@ def chunk_text(text, max_length=500):
     
     return chunks
 
-@app.route("/api/waves", methods=["GET"])
-def tts_endpoint():
-    """Handle GET requests for text-to-speech optimized for ESP32 I2S streaming."""
-    text = request.args.get("text", "Hello, world!")
-    voice_id = request.args.get("voice_id", "emily")  # Default voice: "emily"
-    
-    # Check for chunking parameter, default to True for long text
-    enable_chunking = request.args.get("chunking", "auto").lower()
+@app.get("/api/waves")
+async def tts_endpoint(
+    text: str = Query("Hello, world!", description="Text to convert to speech"),
+    voice_id: str = Query("emily", description="Voice ID to use"),
+    chunking: Optional[str] = Query("auto", description="Chunking mode: 'auto', 'true', or 'false'")
+):
+    """
+    Generate text-to-speech audio optimized for ESP32 I2S streaming.
+    Returns a WAV file with the synthesized speech.
+    """
+    if not SMALLEST_API_KEY:
+        raise HTTPException(status_code=500, detail="API key not configured")
     
     try:
         client = Smallest(api_key=SMALLEST_API_KEY)
         
-        # Determine if chunking is needed
-        should_chunk = (enable_chunking == "true" or 
-                       (enable_chunking == "auto" and len(text) > 500))
+        # Use smaller chunks (200 chars) to reduce processing time per chunk
+        should_chunk = (chunking.lower() == "true" or 
+                       (chunking.lower() == "auto" and len(text) > 200))
         
         if should_chunk:
-            # Split text into manageable chunks
-            chunks = chunk_text(text)
+            # Split text into smaller manageable chunks
+            chunks = chunk_text(text, max_length=200)
             
             # Process each chunk and combine the audio
             combined_audio = io.BytesIO()
@@ -99,11 +105,10 @@ def tts_endpoint():
             # Prepare the combined audio for sending
             combined_audio.seek(0)
             
-            return send_file(
-                combined_audio, 
-                mimetype="audio/wav",
-                as_attachment=True,
-                download_name="tts.wav"
+            return StreamingResponse(
+                combined_audio,
+                media_type="audio/wav",
+                headers={"Content-Disposition": "attachment; filename=tts.wav"}
             )
         else:
             # Process short text normally
@@ -114,18 +119,15 @@ def tts_endpoint():
                 add_wav_header=True
             )
             
-            # Create in-memory file instead of using tmp directory
+            # Create in-memory file
             audio_file = io.BytesIO(audio_bytes)
+            audio_file.seek(0)
             
-            return send_file(
+            return StreamingResponse(
                 audio_file,
-                mimetype="audio/wav",
-                as_attachment=True,
-                download_name="tts.wav"
+                media_type="audio/wav",
+                headers={"Content-Disposition": "attachment; filename=tts.wav"}
             )
 
     except Exception as e:
-        return {"success": False, "message": str(e)}, 500
-
-if __name__ == "__main__":
-    app.run(debug=True)
+        raise HTTPException(status_code=500, detail=str(e))
