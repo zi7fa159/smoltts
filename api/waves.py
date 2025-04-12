@@ -1,6 +1,6 @@
 import os
 from flask import Flask, request, send_file
-from smallest import AsyncSmallest
+from smallest import Smallest
 
 app = Flask(__name__)
 
