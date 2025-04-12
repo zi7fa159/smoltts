@@ -1,6 +1,6 @@
 import os
 from flask import Flask, request, send_file
-from smallest import Smallest
+from smallestai import Smallest
 
 app = Flask(__name__)
 
